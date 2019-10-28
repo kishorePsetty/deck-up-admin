@@ -38,7 +38,7 @@ class Diy extends Component {
     this.state = {
       diyTitle: "",
       diyDescription: "",
-      diyCategory: "",
+      diyCategory: "0",
       allDiys: [],
       allDiyCategories: [],
       showAddDiyModal: false,
@@ -48,7 +48,10 @@ class Diy extends Component {
       showDiyAddSuccessAlert: false,
       addDiySuccessMessage: "",
       showDeleteDiyConfirmModal: false,
-      deleteDiyId: ""
+      deleteDiyId: "",
+      deleteDiyInProgress: false,
+      showDiyDeleteErrorAlert: false,
+      diyDeleteErrorMessage: ""
     };
     this.updateDiyDescriptionValue = this.updateDiyDescriptionValue.bind(this);
     this.updateDiyTitleValue = this.updateDiyTitleValue.bind(this);
@@ -129,7 +132,7 @@ class Diy extends Component {
       diyTitle: "",
       diyDescription: "",
       diyVideoUrl: "",
-      diyCategory: ""
+      diyCategory: "0"
     });
   }
 
@@ -169,9 +172,17 @@ class Diy extends Component {
       });
   }
 
-  editDiyData() {}
+  editDiyData(diyData) {
+    this.setState({
+      diyCategory: diyData.category,
+      showAddDiyModal: true,
+      diyTitle: diyData.title,
+      diyDescription: diyData.description,
+      diyVideoUrl: diyData.videoUrl
+    });
+  }
 
-  showDeleteDiyConfirmModal(diyData) {
+  confirmDiyDelete(diyData) {
     this.setState({
       showDeleteDiyConfirmModal: true,
       deleteDiyId: diyData._id
@@ -179,6 +190,7 @@ class Diy extends Component {
   }
 
   async removeDiy() {
+    this.setState({ deleteDiyInProgress: true });
     const remove = await fetch(`/api/diy/delete`, {
       method: "POST",
       headers: utils.getHeaders(),
@@ -187,10 +199,19 @@ class Diy extends Component {
     remove
       .json()
       .then(response => {
-        if (response.success) {
-          this.getAllDiys();
-          this.setState({ showDeleteDiyConfirmModal: false });
+        if (!response.success) {
+          this.setState({
+            showDiyDeleteErrorAlert: true,
+            diyDeleteErrorMessage: response.message,
+            deleteDiyInProgress: false
+          });
+          return;
         }
+        this.getAllDiys();
+        this.setState({
+          showDeleteDiyConfirmModal: false,
+          deleteDiyInProgress: false
+        });
       })
       .catch(err => {
         console.log(err);
@@ -202,7 +223,9 @@ class Diy extends Component {
       showAddDiyModal,
       showDiyAddSuccessAlert,
       addDiySuccessMessage,
-      showDeleteDiyConfirmModal
+      showDeleteDiyConfirmModal,
+      showDiyDeleteErrorAlert,
+      diyDeleteErrorMessage
     } = this.state;
     return (
       <div className="animated fadeIn">
@@ -249,7 +272,7 @@ class Diy extends Component {
                               <Button
                                 block
                                 color="info"
-                                onClick={this.editDiyData}
+                                onClick={this.editDiyData.bind(this, diy)}
                               >
                                 Edit
                               </Button>
@@ -258,10 +281,7 @@ class Diy extends Component {
                               <Button
                                 block
                                 color="danger"
-                                onClick={this.showConfirmDiyDeleteModal.bind(
-                                  this,
-                                  diy
-                                )}
+                                onClick={this.confirmDiyDelete.bind(this, diy)}
                               >
                                 Delete
                               </Button>
@@ -272,7 +292,11 @@ class Diy extends Component {
                     );
                   })
                 ) : (
-                  <div>No Diys Added</div>
+                  <tr>
+                    <td colspan="12" className="text-center">
+                      No Diys Added
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </Table>
@@ -341,9 +365,6 @@ class Diy extends Component {
                     value={this.state.diyVideoUrl}
                     onChange={this.updateDiyVideoUrlValue}
                   />
-                  <FormText className="help-block">
-                    Please enter your email
-                  </FormText>
                 </Col>
               </FormGroup>
 
@@ -352,26 +373,26 @@ class Diy extends Component {
                   <Label htmlFor="select">Category</Label>
                 </Col>
                 <Col xs="12">
-                  <Input
-                    type="select"
+                  <select
                     name="select"
-                    id="select"
+                    id="diycategory"
+                    value={this.state.diyCategory}
                     onChange={this.addDiyCategory}
                   >
-                    <option value="0" disabled selected>
+                    <option value="0" disabled>
                       Please select category
                     </option>
                     {this.state.allDiyCategories &&
                     this.state.allDiyCategories.length
                       ? this.state.allDiyCategories.map(category => {
                           return (
-                            <option key={category._id} value={category._id}>
+                            <option key={category._id} value={category.name}>
                               {category.name}
                             </option>
                           );
                         })
                       : null}
-                  </Input>
+                  </select>
                 </Col>
               </FormGroup>
             </Form>
@@ -406,21 +427,39 @@ class Diy extends Component {
           <ModalHeader
             toggle={() => {
               this.setState({
-                showDeleteDiyConfirmModal: !showDeleteDiyConfirmModal
+                showDeleteDiyConfirmModal: !showDeleteDiyConfirmModal,
+                diyDeleteErrorMessage: "",
+                showDiyDeleteErrorAlert: false
               });
             }}
           >
             Delete Diy
           </ModalHeader>
-          <ModalBody className="text-center"><strong>Are you sure?</strong></ModalBody>
+          <ModalBody className="text-center">
+            <div className="m-5">
+              <strong>Are you sure?</strong>
+            </div>
+            {showDiyDeleteErrorAlert ? (
+              <Alert color="danger">{diyDeleteErrorMessage}</Alert>
+            ) : null}
+          </ModalBody>
           <ModalFooter>
-            <Button color="danger" onClick={this.removeDiy}>
+            <Button
+              color="danger"
+              disabled={this.state.deleteDiyInProgress}
+              onClick={this.removeDiy}
+            >
               Confirm
             </Button>{" "}
             <Button
               color="secondary"
+              disabled={this.state.deleteDiyInProgress}
               onClick={() => {
-                this.setState({ showDeleteDiyConfirmModal: false });
+                this.setState({
+                  showDeleteDiyConfirmModal: false,
+                  showDiyDeleteErrorAlert: false,
+                  diyDeleteErrorMessage: ""
+                });
               }}
             >
               Cancel
